@@ -36,7 +36,10 @@ namespace proxifyre_tray
         {
             if (keyData == (Keys.Control | Keys.C))
             {
-                buttonStop_Click(new object(), new EventArgs());
+                if (buttonStop.Enabled == true)
+                {
+                    buttonStop_Click(new object(), new EventArgs());
+                }
                 return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
@@ -260,7 +263,7 @@ namespace proxifyre_tray
             {
                 socks5ProxyEndpoint = "127.0.0.1:1080",
                 appNames = new List<string>(),
-                supportedProtocols = new List<string>()
+                supportedProtocols = new List<string>() { "TCP", "UDP" }
             });
             updateProxies(configuration.proxies.Count - 1);
         }
