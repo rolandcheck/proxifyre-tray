@@ -1,6 +1,5 @@
 using Microsoft.Win32;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -10,11 +9,14 @@ using System.Text.Json.Serialization;
 namespace proxifyre_tray
 {
     /// <summary>
-    /// Owns all the behaviour that used to live in FormMain: loading/saving the
-    /// configuration, editing proxies and apps, launching and stopping the
-    /// ProxiFyre process, and the "launch on startup" registry entry. It talks to
-    /// the window exclusively through <see cref="IFormMainView"/>, so it never
-    /// references System.Windows.Forms.
+    /// Owns all mutation of the domain model (<see cref="AppConfiguration"/>): loading/saving
+    /// the configuration, editing proxies and apps, launching and stopping the ProxiFyre
+    /// process, and the "launch on startup" registry entry. The domain model itself never
+    /// leaves this class - the view only ever sees a <see cref="ConfigurationView"/> snapshot,
+    /// pushed via <see cref="IFormMainView.SetConfiguration"/> after every edit, and identifies
+    /// which proxy an edit targets by <see cref="ProxyView.Id"/> rather than by reference. Talks
+    /// to the window exclusively through <see cref="IFormMainView"/>, so it never references
+    /// System.Windows.Forms.
     /// </summary>
     internal sealed class FormMainPresenter
     {
@@ -24,10 +26,8 @@ namespace proxifyre_tray
         private static readonly string[] LogLevels = { "None", "Info", "Deb", "All" };
         private const string StartupRegistryKeyPath = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run";
 
-        // Configuration uses public fields rather than properties, so IncludeFields is required.
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
-            IncludeFields = true,
             WriteIndented = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
@@ -36,15 +36,116 @@ namespace proxifyre_tray
         private readonly string productName;
         private readonly string executablePath;
 
-        private Configuration configuration;
-        private Configuration.Proxy proxy;
-        private Process proxifyreProcess;
+        // Assigned in LoadConfig, called from Initialize (not the constructor) - always non-null by
+        // the time any event handler below can run, since nothing can fire before Initialize completes.
+        private AppConfiguration configuration = null!;
+
+        private Process? proxifyreProcess;
 
         public FormMainPresenter(IFormMainView view, string productName, string executablePath)
         {
             this.view = view;
             this.productName = productName;
             this.executablePath = executablePath;
+
+            view.SaveRequested += (sender, e) => OnSave();
+            view.StartRequested += (sender, e) => OnStart();
+            view.StopRequested += (sender, e) => OnStop();
+            view.StartupToggleRequested += (sender, e) => OnStartupToggle();
+            view.AboutRequested += (sender, e) => OnAbout();
+            view.LinkClicked += (sender, link) => OnLinkClicked(link);
+            view.ViewClosing += (sender, e) => e.Cancel = ShouldCancelClose(e.UserClosing);
+            view.ViewClosed += (sender, e) => OnFormClosed();
+
+            view.ProxyAddRequested += (sender, e) => OnProxyAdd();
+            view.ProxyDeleteRequested += (sender, proxyId) => OnProxyDelete(proxyId);
+            view.AppAddRequested += (sender, e) => OnAppAdd(e.ProxyId, e.AppName);
+            view.AppDeleteRequested += (sender, e) => OnAppDelete(e.ProxyId, e.AppName);
+            view.ProxyFieldsEditRequested += (sender, e) => OnProxyFieldsEdit(e.ProxyId, e.Endpoint, e.Username, e.Password, e.Tcp, e.Udp);
+            view.LogLevelEditRequested += (sender, logLevel) => OnLogLevelEdit(logLevel);
+        }
+
+        private ProxyConfiguration? FindProxy(Guid proxyId)
+        {
+            return configuration.Proxies.FirstOrDefault(proxy => proxy.Id == proxyId);
+        }
+
+        /// <summary>Pushes a fresh snapshot to the view after a mutation, asking it to keep (or move to) the given proxy selected.</summary>
+        private void RefreshView(Guid? selectedProxyId)
+        {
+            view.SetConfiguration(configuration.ToView(), selectedProxyId);
+        }
+
+        private void OnProxyAdd()
+        {
+            var proxy = ProxyConfiguration.CreateDefault();
+            configuration.Proxies.Add(proxy);
+            RefreshView(proxy.Id);
+        }
+
+        private void OnProxyDelete(Guid proxyId)
+        {
+            var index = configuration.Proxies.FindIndex(proxy => proxy.Id == proxyId);
+            if (index < 0)
+            {
+                return;
+            }
+            configuration.Proxies.RemoveAt(index);
+
+            // Select whatever ends up at the same position, mirroring the old "nearest remaining item" behaviour.
+            Guid? fallbackId = configuration.Proxies.Count > 0
+                ? configuration.Proxies[Math.Min(index, configuration.Proxies.Count - 1)].Id
+                : null;
+            RefreshView(fallbackId);
+        }
+
+        private void OnAppAdd(Guid proxyId, string appName)
+        {
+            var proxy = FindProxy(proxyId);
+            if (proxy == null || proxy.AppNames.Contains(appName))
+            {
+                return;
+            }
+            proxy.AppNames.Add(appName);
+            RefreshView(proxyId);
+        }
+
+        private void OnAppDelete(Guid proxyId, string appName)
+        {
+            var proxy = FindProxy(proxyId);
+            if (proxy == null)
+            {
+                return;
+            }
+            proxy.AppNames.Remove(appName);
+            RefreshView(proxyId);
+        }
+
+        private void OnProxyFieldsEdit(Guid proxyId, string endpoint, string username, string password, bool tcp, bool udp)
+        {
+            var proxy = FindProxy(proxyId);
+            if (proxy == null)
+            {
+                return;
+            }
+            // Skip the endpoint commit while it's blank - otherwise a mid-edit empty field would
+            // blank out (and, on save, drop) an otherwise-valid proxy.
+            if (!string.IsNullOrEmpty(endpoint))
+            {
+                proxy.Endpoint = endpoint;
+            }
+            proxy.Username = username;
+            proxy.Password = password;
+            proxy.Tcp = tcp;
+            proxy.Udp = udp;
+            RefreshView(proxyId);
+        }
+
+        private void OnLogLevelEdit(string logLevel)
+        {
+            // Doesn't touch any proxy, and the combo box already shows what the user just typed -
+            // no need to push a fresh snapshot back.
+            configuration.LogLevel = logLevel;
         }
 
         public void Initialize()
@@ -52,7 +153,8 @@ namespace proxifyre_tray
             if (!File.Exists(ProgramPath))
             {
                 view.DisableAllControls();
-                view.AppendOutput("Couldn't find " + ProgramName + Environment.NewLine + "proxifyre-tray.exe must be inside the ProxiFyre directory to work");
+                view.AppendLine("Couldn't find " + ProgramName);
+                view.AppendLine("proxifyre-tray.exe must be inside the ProxiFyre directory to work");
                 view.ShowForm();
                 return;
             }
@@ -61,12 +163,11 @@ namespace proxifyre_tray
 
             view.SetRunningState(false);
             view.SetLogLevels(LogLevels);
-            view.StopEnabled = false;
 
             LoadConfig();
 
             var startupRegistryKey = Registry.CurrentUser.OpenSubKey(StartupRegistryKeyPath, true);
-            var startupRegistryValue = (string)startupRegistryKey.GetValue(productName);
+            var startupRegistryValue = startupRegistryKey?.GetValue(productName) as string;
             if (startupRegistryValue == null)
             {
                 view.StartupChecked = false;
@@ -78,7 +179,7 @@ namespace proxifyre_tray
             }
             else
             {
-                startupRegistryKey.DeleteValue(productName, false);
+                startupRegistryKey?.DeleteValue(productName, false);
                 view.StartupChecked = false;
             }
 
@@ -99,305 +200,45 @@ namespace proxifyre_tray
                 }
                 catch (Exception ex)
                 {
-                    view.AppendOutput(Environment.NewLine + ex.Message);
+                    view.AppendLine(ex.Message);
                 }
-                // Mirror Newtonsoft's old leniency: an empty/unreadable file yields no configuration
-                // rather than a JsonException, matching what happened when File.ReadAllText failed above.
-                configuration = string.IsNullOrEmpty(configContent)
+                // Mirror Newtonsoft's old leniency: an empty/unreadable file yields an
+                // empty configuration rather than a JsonException.
+                var dto = string.IsNullOrEmpty(configContent)
                     ? null
                     : JsonSerializer.Deserialize<Configuration>(configContent, JsonOptions);
-                UpdateAll();
+                configuration = dto?.ToDomain() ?? new AppConfiguration();
             }
             else
             {
-                configuration = new Configuration { logLevel = LogLevels[0] };
+                configuration = new AppConfiguration();
             }
+
+            if (string.IsNullOrEmpty(configuration.LogLevel))
+            {
+                configuration.LogLevel = LogLevels[0];
+            }
+
+            RefreshView(null);
         }
 
-        private void UpdateAll()
+        private void OnSave()
         {
-            if (!string.IsNullOrEmpty(configuration.logLevel))
-            {
-                view.LogLevel = configuration.logLevel;
-            }
-            UpdateProxies(0);
-        }
-
-        private void UpdateProxies(int selectedIndex)
-        {
-            proxy = null;
-            var items = new List<string>();
-
-            if (configuration.proxies != null)
-            {
-                for (var index = 0; index < configuration.proxies.Count; index++)
-                {
-                    proxy = configuration.proxies[index];
-                    if (!string.IsNullOrEmpty(proxy.socks5ProxyEndpoint))
-                    {
-                        items.Add(proxy.socks5ProxyEndpoint);
-                    }
-                    else
-                    {
-                        configuration.proxies.RemoveAt(index);
-                        index--;
-                    }
-                }
-            }
-
-            view.SetProxyItems(items);
-
-            if (items.Count > 0)
-            {
-                view.ProxySelectedIndex = items.Count <= selectedIndex ? items.Count - 1 : selectedIndex;
-            }
-            else
-            {
-                UpdateApps(0);
-            }
-        }
-
-        private void UpdateApps(int selectedIndex)
-        {
-            var items = new List<string>();
-            view.AppText = string.Empty;
-
-            if (proxy != null && proxy.appNames != null)
-            {
-                items.AddRange(proxy.appNames);
-            }
-
-            view.SetAppItems(items);
-
-            if (items.Count > 0)
-            {
-                view.AppSelectedIndex = items.Count <= selectedIndex ? items.Count - 1 : selectedIndex;
-            }
-        }
-
-        public void OnProxySelectionChanged()
-        {
-            var items = view.ProxyItems;
-            var selectedIndex = view.ProxySelectedIndex;
-            var selectedText = view.ProxySelectedText;
-
-            var skipDuplicateEntries = 0;
-            for (var index = 0; index < selectedIndex; index++)
-            {
-                if (items[index] == selectedText)
-                {
-                    skipDuplicateEntries++;
-                }
-            }
-
-            foreach (var candidate in configuration.proxies)
-            {
-                if (candidate.socks5ProxyEndpoint == selectedText)
-                {
-                    if (skipDuplicateEntries > 0)
-                    {
-                        skipDuplicateEntries--;
-                        continue;
-                    }
-                    proxy = candidate;
-                    break;
-                }
-            }
-
-            UpdateApps(0);
-
-            if (proxy.socks5ProxyEndpoint.Contains(":"))
-            {
-                var separatorIndex = proxy.socks5ProxyEndpoint.IndexOf(":");
-                view.IpText = proxy.socks5ProxyEndpoint.Substring(0, separatorIndex);
-                view.PortText = proxy.socks5ProxyEndpoint.Substring(separatorIndex + 1);
-            }
-            view.UsernameText = proxy.username;
-            view.PasswordText = proxy.password;
-            view.TcpChecked = view.UdpChecked = false;
-            if (proxy.supportedProtocols != null)
-            {
-                foreach (var supportedProtocol in proxy.supportedProtocols)
-                {
-                    if (supportedProtocol == "TCP")
-                    {
-                        view.TcpChecked = true;
-                    }
-                    if (supportedProtocol == "UDP")
-                    {
-                        view.UdpChecked = true;
-                    }
-                }
-            }
-        }
-
-        public void OnAppSelectionChanged()
-        {
-            if (proxy != null)
-            {
-                view.AppText = proxy.appNames[view.AppSelectedIndex];
-            }
-        }
-
-        public void OnProxyAdd()
-        {
-            if (configuration.proxies == null)
-            {
-                configuration.proxies = new List<Configuration.Proxy>();
-            }
-            configuration.proxies.Add(new Configuration.Proxy
-            {
-                socks5ProxyEndpoint = "127.0.0.1:1080",
-                appNames = new List<string>(),
-                supportedProtocols = new List<string> { "TCP", "UDP" }
-            });
-            UpdateProxies(configuration.proxies.Count - 1);
-        }
-
-        public void OnProxyDelete()
-        {
-            configuration.proxies.Remove(proxy);
-            UpdateProxies(view.ProxySelectedIndex);
-        }
-
-        public void OnAppBrowse()
-        {
-            var fileName = view.BrowseForAppFile();
-            if (proxy == null || string.IsNullOrEmpty(fileName) || view.AppItems.Contains(fileName))
-            {
-                return;
-            }
-            if (proxy.appNames == null)
-            {
-                proxy.appNames = new List<string>();
-            }
-            proxy.appNames.Add(fileName);
-            UpdateApps(proxy.appNames.Count - 1);
-        }
-
-        public void OnAppAdd()
-        {
-            var appText = view.AppText;
-            if (proxy == null || string.IsNullOrEmpty(appText) || view.AppItems.Contains(appText))
-            {
-                return;
-            }
-            if (proxy.appNames == null)
-            {
-                proxy.appNames = new List<string>();
-            }
-            proxy.appNames.Add(appText);
-            UpdateApps(proxy.appNames.Count - 1);
-        }
-
-        public void OnAppDelete()
-        {
-            if (proxy == null)
-            {
-                return;
-            }
-            proxy.appNames.Remove(view.AppSelectedText);
-            UpdateApps(view.AppSelectedIndex);
-        }
-
-        private void SetSocks5ProxyEndpoint()
-        {
-            if (!string.IsNullOrEmpty(view.IpText) && !string.IsNullOrEmpty(view.PortText))
-            {
-                proxy.socks5ProxyEndpoint = view.IpText + ":" + view.PortText;
-                view.ReplaceProxyItem(view.ProxySelectedIndex, proxy.socks5ProxyEndpoint);
-            }
-        }
-
-        public void OnIpValidated()
-        {
-            if (proxy != null)
-            {
-                SetSocks5ProxyEndpoint();
-            }
-        }
-
-        public void OnPortValidated()
-        {
-            if (proxy != null)
-            {
-                SetSocks5ProxyEndpoint();
-            }
-        }
-
-        public void OnUsernameValidated()
-        {
-            if (proxy != null)
-            {
-                proxy.username = view.UsernameText;
-            }
-        }
-
-        public void OnPasswordValidated()
-        {
-            if (proxy != null)
-            {
-                proxy.password = view.PasswordText;
-            }
-        }
-
-        private void SetSupportedProtocols(bool isChecked, string protocol)
-        {
-            if (proxy.supportedProtocols == null)
-            {
-                proxy.supportedProtocols = new List<string>();
-            }
-            if (isChecked)
-            {
-                if (!proxy.supportedProtocols.Contains(protocol))
-                {
-                    proxy.supportedProtocols.Add(protocol);
-                    proxy.supportedProtocols.Sort();
-                }
-            }
-            else
-            {
-                proxy.supportedProtocols.Remove(protocol);
-            }
-        }
-
-        public void OnTcpValidated()
-        {
-            if (proxy != null)
-            {
-                SetSupportedProtocols(view.TcpChecked, "TCP");
-            }
-        }
-
-        public void OnUdpValidated()
-        {
-            if (proxy != null)
-            {
-                SetSupportedProtocols(view.UdpChecked, "UDP");
-            }
-        }
-
-        public void OnLogLevelValidated()
-        {
-            configuration.logLevel = view.LogLevel;
-        }
-
-        public void OnSave()
-        {
-            var content = JsonSerializer.Serialize(configuration, JsonOptions);
+            var dto = configuration.ToDto();
+            var content = JsonSerializer.Serialize(dto, JsonOptions);
 
             try
             {
                 File.WriteAllText(ConfigPath, content);
-                view.AppendOutput(Environment.NewLine + "Configuration file saved");
+                view.AppendLine("Configuration file saved");
             }
             catch (Exception ex)
             {
-                view.AppendOutput(Environment.NewLine + ex.Message);
+                view.AppendLine(ex.Message);
             }
         }
 
-        public void OnStart()
+        private void OnStart()
         {
             OnSave();
 
@@ -408,20 +249,20 @@ namespace proxifyre_tray
 
             if (proxifyreProcess == null)
             {
-                view.AppendOutput(Environment.NewLine + "Starting ProxiFyre");
+                view.AppendLine("Starting ProxiFyre");
             }
             else
             {
                 try
                 {
-                    if (Process.GetProcessById(proxifyreProcess.Id) != null)
-                    {
-                        OnStop();
-                    }
+                    // GetProcessById never returns null - it throws if the process isn't running,
+                    // which is exactly what we're probing for here.
+                    Process.GetProcessById(proxifyreProcess.Id);
+                    OnStop();
                 }
                 catch (Exception)
                 {
-                    view.AppendOutput(Environment.NewLine + "Starting ProxiFyre");
+                    view.AppendLine("Starting ProxiFyre");
                 }
             }
 
@@ -438,7 +279,7 @@ namespace proxifyre_tray
                 EnableRaisingEvents = true
             };
 
-            proxifyreProcess.OutputDataReceived += (sender, e) => view.AppendOutput(Environment.NewLine + e.Data);
+            proxifyreProcess.OutputDataReceived += (sender, e) => view.AppendLine(e.Data ?? string.Empty);
 
             try
             {
@@ -448,70 +289,60 @@ namespace proxifyre_tray
             }
             catch (Exception ex)
             {
-                view.AppendOutput(Environment.NewLine + ex.Message);
+                view.AppendLine(ex.Message);
             }
 
             view.SetRunningState(true);
-            view.StopEnabled = true;
         }
 
-        public void OnStop()
+        private void OnStop()
         {
             if (proxifyreProcess == null)
             {
                 return;
             }
 
-            view.AppendOutput(Environment.NewLine + "Stopping ProxiFyre");
+            view.AppendLine("Stopping ProxiFyre");
             proxifyreProcess.Kill();
             proxifyreProcess.Dispose();
 
             view.SetRunningState(false);
-            view.StopEnabled = false;
         }
 
-        public void OnCtrlC()
-        {
-            if (view.StopEnabled)
-            {
-                OnStop();
-            }
-        }
-
-        public void OnStartupToggle()
+        private void OnStartupToggle()
         {
             var startupRegistryKey = Registry.CurrentUser.OpenSubKey(StartupRegistryKeyPath, true);
             if (!view.StartupChecked)
             {
-                startupRegistryKey.SetValue(productName, executablePath);
+                startupRegistryKey?.SetValue(productName, executablePath);
                 view.StartupChecked = true;
             }
             else
             {
-                startupRegistryKey.DeleteValue(productName, false);
+                startupRegistryKey?.DeleteValue(productName, false);
                 view.StartupChecked = false;
             }
         }
 
-        public void OnAbout()
+        private void OnAbout()
         {
-            view.AppendOutput(Environment.NewLine + "ProxiFyre configuration utility and tray launcher thing" + Environment.NewLine
-                + "proxifyre-tray by airenelias https://github.com/airenelias/proxifyre-tray" + Environment.NewLine
-                + "Icons by Icons8 https://icons8.com");
+            view.AppendLine("ProxiFyre configuration utility and tray launcher thing");
+            view.AppendLine("proxifyre-tray by airenelias https://github.com/airenelias/proxifyre-tray");
+            view.AppendLine("Icons by Icons8 https://icons8.com");
         }
 
-        public void OnLinkClicked(string link)
+        private void OnLinkClicked(string link)
         {
             Process.Start(link);
         }
 
         /// <summary>Whether a user-initiated close should be turned into a hide instead.</summary>
-        public bool ShouldCancelClose(bool userClosing)
+        private bool ShouldCancelClose(bool userClosing)
         {
             return userClosing && File.Exists(ProgramPath);
         }
 
-        public void OnFormClosed()
+        private void OnFormClosed()
         {
             if (proxifyreProcess == null)
             {
@@ -519,11 +350,11 @@ namespace proxifyre_tray
             }
             try
             {
-                if (Process.GetProcessById(proxifyreProcess.Id) != null)
-                {
-                    proxifyreProcess.Kill();
-                    proxifyreProcess.Dispose();
-                }
+                // GetProcessById never returns null - it throws if the process isn't running,
+                // which is exactly what we're probing for here.
+                Process.GetProcessById(proxifyreProcess.Id);
+                proxifyreProcess.Kill();
+                proxifyreProcess.Dispose();
             }
             catch (Exception)
             {

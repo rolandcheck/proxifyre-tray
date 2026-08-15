@@ -34,17 +34,15 @@
             this.labelProxies = new System.Windows.Forms.Label();
             this.comboBoxLogLevel = new System.Windows.Forms.ComboBox();
             this.listBoxApps = new System.Windows.Forms.ListBox();
-            this.textBoxIp = new System.Windows.Forms.TextBox();
+            this.textBoxEndpoint = new System.Windows.Forms.TextBox();
             this.textBoxUsername = new System.Windows.Forms.TextBox();
             this.textBoxPassword = new System.Windows.Forms.TextBox();
             this.labelUsername = new System.Windows.Forms.Label();
-            this.labelIp = new System.Windows.Forms.Label();
+            this.labelEndpoint = new System.Windows.Forms.Label();
             this.labelApps = new System.Windows.Forms.Label();
-            this.labelPort = new System.Windows.Forms.Label();
             this.labelPassword = new System.Windows.Forms.Label();
             this.checkBoxTcp = new System.Windows.Forms.CheckBox();
             this.checkBoxUdp = new System.Windows.Forms.CheckBox();
-            this.textBoxPort = new System.Windows.Forms.TextBox();
             this.textBoxApp = new System.Windows.Forms.TextBox();
             this.labelConfiguration = new System.Windows.Forms.Label();
             this.openFileDialogApp = new System.Windows.Forms.OpenFileDialog();
@@ -129,15 +127,15 @@
             this.listBoxApps.SelectedIndexChanged += new System.EventHandler(this.listBoxApps_SelectedIndexChanged);
             this.listBoxApps.MouseHover += new System.EventHandler(this.listBoxApps_MouseHover);
             // 
-            // textBoxIp
-            // 
-            this.textBoxIp.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxIp.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.textBoxIp.Location = new System.Drawing.Point(415, 31);
-            this.textBoxIp.Name = "textBoxIp";
-            this.textBoxIp.Size = new System.Drawing.Size(115, 23);
-            this.textBoxIp.TabIndex = 13;
-            this.textBoxIp.Validated += new System.EventHandler(this.textBoxIp_Validated);
+            // textBoxEndpoint
+            //
+            this.textBoxEndpoint.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxEndpoint.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.textBoxEndpoint.Location = new System.Drawing.Point(415, 31);
+            this.textBoxEndpoint.Name = "textBoxEndpoint";
+            this.textBoxEndpoint.Size = new System.Drawing.Size(207, 23);
+            this.textBoxEndpoint.TabIndex = 13;
+            this.textBoxEndpoint.Validated += new System.EventHandler(this.textBoxEndpoint_Validated);
             // 
             // textBoxUsername
             // 
@@ -157,6 +155,7 @@
             this.textBoxPassword.Name = "textBoxPassword";
             this.textBoxPassword.Size = new System.Drawing.Size(207, 23);
             this.textBoxPassword.TabIndex = 19;
+            this.textBoxPassword.PasswordChar = '*';
             this.textBoxPassword.Validated += new System.EventHandler(this.textBoxPassword_Validated);
             // 
             // labelUsername
@@ -170,16 +169,16 @@
             this.labelUsername.TabIndex = 16;
             this.labelUsername.Text = "Username";
             // 
-            // labelIp
-            // 
-            this.labelIp.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.labelIp.AutoSize = true;
-            this.labelIp.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.labelIp.Location = new System.Drawing.Point(393, 34);
-            this.labelIp.Name = "labelIp";
-            this.labelIp.Size = new System.Drawing.Size(21, 15);
-            this.labelIp.TabIndex = 12;
-            this.labelIp.Text = "IP";
+            // labelEndpoint
+            //
+            this.labelEndpoint.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.labelEndpoint.AutoSize = true;
+            this.labelEndpoint.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.labelEndpoint.Location = new System.Drawing.Point(345, 34);
+            this.labelEndpoint.Name = "labelEndpoint";
+            this.labelEndpoint.Size = new System.Drawing.Size(69, 15);
+            this.labelEndpoint.TabIndex = 12;
+            this.labelEndpoint.Text = "Endpoint";
             // 
             // labelApps
             // 
@@ -190,18 +189,7 @@
             this.labelApps.Size = new System.Drawing.Size(45, 19);
             this.labelApps.TabIndex = 2;
             this.labelApps.Text = "Apps";
-            // 
-            // labelPort
-            // 
-            this.labelPort.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.labelPort.AutoSize = true;
-            this.labelPort.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.labelPort.Location = new System.Drawing.Point(541, 34);
-            this.labelPort.Name = "labelPort";
-            this.labelPort.Size = new System.Drawing.Size(35, 15);
-            this.labelPort.TabIndex = 14;
-            this.labelPort.Text = "Port";
-            // 
+            //
             // labelPassword
             // 
             this.labelPassword.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
@@ -238,17 +226,7 @@
             this.checkBoxUdp.Text = "UDP";
             this.checkBoxUdp.UseVisualStyleBackColor = true;
             this.checkBoxUdp.Validated += new System.EventHandler(this.checkBoxUdp_Validated);
-            // 
-            // textBoxPort
-            // 
-            this.textBoxPort.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxPort.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.textBoxPort.Location = new System.Drawing.Point(577, 31);
-            this.textBoxPort.Name = "textBoxPort";
-            this.textBoxPort.Size = new System.Drawing.Size(45, 23);
-            this.textBoxPort.TabIndex = 15;
-            this.textBoxPort.Validated += new System.EventHandler(this.textBoxPort_Validated);
-            // 
+            //
             // textBoxApp
             // 
             this.textBoxApp.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
@@ -444,13 +422,11 @@
             this.Controls.Add(this.labelConfiguration);
             this.Controls.Add(this.buttonBrowse);
             this.Controls.Add(this.textBoxApp);
-            this.Controls.Add(this.textBoxPort);
             this.Controls.Add(this.checkBoxUdp);
             this.Controls.Add(this.checkBoxTcp);
             this.Controls.Add(this.labelPassword);
-            this.Controls.Add(this.labelPort);
             this.Controls.Add(this.labelApps);
-            this.Controls.Add(this.labelIp);
+            this.Controls.Add(this.labelEndpoint);
             this.Controls.Add(this.buttonAppsDel);
             this.Controls.Add(this.buttonAppsAdd);
             this.Controls.Add(this.buttonProxiesDel);
@@ -458,7 +434,7 @@
             this.Controls.Add(this.textBoxPassword);
             this.Controls.Add(this.labelUsername);
             this.Controls.Add(this.textBoxUsername);
-            this.Controls.Add(this.textBoxIp);
+            this.Controls.Add(this.textBoxEndpoint);
             this.Controls.Add(this.listBoxApps);
             this.Controls.Add(this.comboBoxLogLevel);
             this.Controls.Add(this.labelProxies);
@@ -482,7 +458,7 @@
         private System.Windows.Forms.Label labelProxies;
         private System.Windows.Forms.ComboBox comboBoxLogLevel;
         private System.Windows.Forms.ListBox listBoxApps;
-        private System.Windows.Forms.TextBox textBoxIp;
+        private System.Windows.Forms.TextBox textBoxEndpoint;
         private System.Windows.Forms.TextBox textBoxUsername;
         private System.Windows.Forms.TextBox textBoxPassword;
         private System.Windows.Forms.Button buttonProxiesAdd;
@@ -490,13 +466,11 @@
         private System.Windows.Forms.Button buttonAppsAdd;
         private System.Windows.Forms.Button buttonAppsDel;
         private System.Windows.Forms.Label labelUsername;
-        private System.Windows.Forms.Label labelIp;
+        private System.Windows.Forms.Label labelEndpoint;
         private System.Windows.Forms.Label labelApps;
-        private System.Windows.Forms.Label labelPort;
         private System.Windows.Forms.Label labelPassword;
         private System.Windows.Forms.CheckBox checkBoxTcp;
         private System.Windows.Forms.CheckBox checkBoxUdp;
-        private System.Windows.Forms.TextBox textBoxPort;
         private System.Windows.Forms.TextBox textBoxApp;
         private System.Windows.Forms.Button buttonBrowse;
         private System.Windows.Forms.Label labelConfiguration;

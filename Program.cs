@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace proxifyre_tray
@@ -16,7 +13,17 @@ namespace proxifyre_tray
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new FormMain());
+
+            // Composition root: the view is a passive component with no knowledge of the
+            // presenter, so it's built first with no dependencies. The presenter is then
+            // constructed with the view, wiring up its event subscriptions.
+            var view = new FormMain();
+            // ProductName is nullable per WinForms' own annotations (unset assembly metadata), though
+            // in practice it always resolves for a built app; fall back to the assembly name just in case.
+            var presenter = new FormMainPresenter(view, Application.ProductName ?? "proxifyre-tray", Application.ExecutablePath);
+            presenter.Initialize();
+
+            Application.Run(view);
         }
     }
 }

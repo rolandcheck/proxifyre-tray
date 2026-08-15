@@ -7,15 +7,19 @@ using System.Windows.Forms;
 namespace proxifyre_tray
 {
     /// <summary>
-    /// The main window. Pure "view" in the MVP sense: it forwards user input to
-    /// <see cref="FormMainPresenter"/> and exposes control state through
-    /// <see cref="IFormMainView"/>; it holds no configuration or process logic itself.
+    /// The main window. A passive view in the MVP sense: it never references
+    /// <see cref="FormMainPresenter"/> or the domain model (<see cref="AppConfiguration"/>) -
+    /// only the read-only <see cref="ConfigurationView"/> snapshot handed to it via
+    /// <see cref="SetConfiguration"/>. Every user edit is raised as an event identifying the
+    /// proxy involved by <see cref="ProxyView.Id"/> plus the new value(s); the presenter
+    /// (wired up by <see cref="Program"/>, the composition root) resolves the id, performs the
+    /// actual mutation, and calls <see cref="SetConfiguration"/> again with a fresh snapshot -
+    /// the view never has to infer what changed, it just re-renders whatever it's given.
     /// </summary>
     public partial class FormMain : Form, IFormMainView
     {
-        private readonly FormMainPresenter presenter;
-
         private bool formVisible;
+        private ConfigurationView? configuration;
 
         protected override void SetVisibleCore(bool value)
         {
@@ -30,7 +34,11 @@ namespace proxifyre_tray
         {
             if (keyData == (Keys.Control | Keys.C))
             {
-                presenter.OnCtrlC();
+                // Mirrors what a real click on the (possibly disabled) Stop button would do.
+                if (buttonStop.Enabled)
+                {
+                    StopRequested?.Invoke(this, EventArgs.Empty);
+                }
                 return true;
             }
             return base.ProcessCmdKey(ref msg, keyData);
@@ -40,85 +48,26 @@ namespace proxifyre_tray
         {
             InitializeComponent();
             Icon = Properties.Resources.icons8_sorting_arrows_32;
+        }
 
-            presenter = new FormMainPresenter(this, Application.ProductName, Application.ExecutablePath);
-            presenter.Initialize();
+        private ProxyView? SelectedProxy
+        {
+            get
+            {
+                var index = listBoxProxies.SelectedIndex;
+                return configuration != null && index >= 0 && index < configuration.Proxies.Count
+                    ? configuration.Proxies[index]
+                    : null;
+            }
         }
 
         #region IFormMainView
 
-        public IReadOnlyList<string> ProxyItems => listBoxProxies.Items.Cast<string>().ToList();
-
-        public string ProxySelectedText => listBoxProxies.Text;
-
-        public int ProxySelectedIndex
+        public void SetConfiguration(ConfigurationView configurationView, Guid? selectedProxyId)
         {
-            get => listBoxProxies.SelectedIndex;
-            set => listBoxProxies.SelectedIndex = value;
-        }
-
-        public IReadOnlyList<string> AppItems => listBoxApps.Items.Cast<string>().ToList();
-
-        public string AppSelectedText => listBoxApps.Text;
-
-        public int AppSelectedIndex
-        {
-            get => listBoxApps.SelectedIndex;
-            set => listBoxApps.SelectedIndex = value;
-        }
-
-        public string LogLevel
-        {
-            get => comboBoxLogLevel.Text;
-            set => comboBoxLogLevel.Text = value;
-        }
-
-        public string IpText
-        {
-            get => textBoxIp.Text;
-            set => textBoxIp.Text = value;
-        }
-
-        public string PortText
-        {
-            get => textBoxPort.Text;
-            set => textBoxPort.Text = value;
-        }
-
-        public string UsernameText
-        {
-            get => textBoxUsername.Text;
-            set => textBoxUsername.Text = value;
-        }
-
-        public string PasswordText
-        {
-            get => textBoxPassword.Text;
-            set => textBoxPassword.Text = value;
-        }
-
-        public bool TcpChecked
-        {
-            get => checkBoxTcp.Checked;
-            set => checkBoxTcp.Checked = value;
-        }
-
-        public bool UdpChecked
-        {
-            get => checkBoxUdp.Checked;
-            set => checkBoxUdp.Checked = value;
-        }
-
-        public string AppText
-        {
-            get => textBoxApp.Text;
-            set => textBoxApp.Text = value;
-        }
-
-        public bool StopEnabled
-        {
-            get => buttonStop.Enabled;
-            set => buttonStop.Enabled = value;
+            configuration = configurationView;
+            comboBoxLogLevel.Text = configuration.LogLevel;
+            RefreshProxyList(selectedProxyId);
         }
 
         public bool StartupChecked
@@ -132,33 +81,11 @@ namespace proxifyre_tray
             comboBoxLogLevel.DataSource = levels.ToList();
         }
 
-        public void SetProxyItems(IReadOnlyList<string> items)
-        {
-            listBoxProxies.Items.Clear();
-            foreach (var item in items)
-            {
-                listBoxProxies.Items.Add(item);
-            }
-        }
-
-        public void SetAppItems(IReadOnlyList<string> items)
-        {
-            listBoxApps.Items.Clear();
-            foreach (var item in items)
-            {
-                listBoxApps.Items.Add(item);
-            }
-        }
-
-        public void ReplaceProxyItem(int index, string text)
-        {
-            listBoxProxies.Items[index] = text;
-        }
-
         public void SetRunningState(bool running)
         {
             buttonStart.Image = running ? Properties.Resources.icons8_start_16 : Properties.Resources.icons8_next_16;
             notifyIconTray.Icon = running ? Properties.Resources.icons8_sorting_arrows_32 : Properties.Resources.icons8_sorting_arrows_grayed_32;
+            buttonStop.Enabled = running;
         }
 
         public void DisableAllControls()
@@ -169,19 +96,14 @@ namespace proxifyre_tray
             }
         }
 
-        public void AppendOutput(string text)
+        public void AppendLine(string text)
         {
             if (richTextBoxOutput.InvokeRequired)
             {
-                richTextBoxOutput.Invoke((MethodInvoker)(() => AppendOutput(text)));
+                richTextBoxOutput.Invoke((MethodInvoker)(() => AppendLine(text)));
                 return;
             }
-            richTextBoxOutput.AppendText(text);
-        }
-
-        public string BrowseForAppFile()
-        {
-            return openFileDialogApp.ShowDialog() == DialogResult.OK ? openFileDialogApp.FileName : null;
+            richTextBoxOutput.AppendText(text + Environment.NewLine);
         }
 
         public void ShowForm()
@@ -190,91 +112,205 @@ namespace proxifyre_tray
             Show();
         }
 
+        public event EventHandler? SaveRequested;
+        public event EventHandler? StartRequested;
+        public event EventHandler? StopRequested;
+        public event EventHandler? StartupToggleRequested;
+        public event EventHandler? AboutRequested;
+        public event EventHandler<string>? LinkClicked;
+        public event EventHandler<ViewClosingEventArgs>? ViewClosing;
+        public event EventHandler? ViewClosed;
+
+        public event EventHandler? ProxyAddRequested;
+        public event EventHandler<Guid>? ProxyDeleteRequested;
+        public event EventHandler<(Guid ProxyId, string AppName)>? AppAddRequested;
+        public event EventHandler<(Guid ProxyId, string AppName)>? AppDeleteRequested;
+        public event EventHandler<(Guid ProxyId, string Endpoint, string Username, string Password, bool Tcp, bool Udp)>? ProxyFieldsEditRequested;
+        public event EventHandler<string>? LogLevelEditRequested;
+
         #endregion
+
+        #region Proxy / app list rendering and selection (view-owned reads; edits go through the presenter)
+
+        private void RefreshProxyList(Guid? selectedProxyId)
+        {
+            // Only ever called right after SetConfiguration assigns configuration, so it's never null here.
+            listBoxProxies.Items.Clear();
+            foreach (var proxy in configuration!.Proxies)
+            {
+                listBoxProxies.Items.Add(proxy.Endpoint);
+            }
+
+            if (listBoxProxies.Items.Count > 0)
+            {
+                var index = selectedProxyId.HasValue
+                    ? configuration.Proxies.FindIndex(proxy => proxy.Id == selectedProxyId.Value)
+                    : -1;
+                listBoxProxies.SelectedIndex = index >= 0 ? index : 0;
+            }
+            else
+            {
+                RefreshAppList(0);
+            }
+        }
+
+        private void RefreshAppList(int selectedIndex)
+        {
+            listBoxApps.Items.Clear();
+            textBoxApp.Text = string.Empty;
+
+            var proxy = SelectedProxy;
+            if (proxy?.AppNames != null)
+            {
+                foreach (var app in proxy.AppNames)
+                {
+                    listBoxApps.Items.Add(app);
+                }
+            }
+
+            if (listBoxApps.Items.Count > 0)
+            {
+                listBoxApps.SelectedIndex = listBoxApps.Items.Count <= selectedIndex
+                    ? listBoxApps.Items.Count - 1
+                    : selectedIndex;
+            }
+        }
+
+        private void RenderSelectedProxy()
+        {
+            RefreshAppList(0);
+
+            var proxy = SelectedProxy;
+            if (proxy == null)
+            {
+                return;
+            }
+
+            textBoxEndpoint.Text = proxy.Endpoint;
+            textBoxUsername.Text = proxy.Username;
+            textBoxPassword.Text = proxy.Password;
+            checkBoxTcp.Checked = proxy.Tcp;
+            checkBoxUdp.Checked = proxy.Udp;
+        }
 
         private void listBoxProxies_SelectedIndexChanged(object sender, EventArgs e)
         {
-            presenter.OnProxySelectionChanged();
+            RenderSelectedProxy();
         }
 
         private void listBoxApps_SelectedIndexChanged(object sender, EventArgs e)
         {
-            presenter.OnAppSelectionChanged();
+            var proxy = SelectedProxy;
+            if (proxy != null && listBoxApps.SelectedIndex >= 0)
+            {
+                textBoxApp.Text = proxy.AppNames[listBoxApps.SelectedIndex];
+            }
         }
 
         private void buttonProxiesAdd_Click(object sender, EventArgs e)
         {
-            presenter.OnProxyAdd();
+            ProxyAddRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void buttonProxiesDel_Click(object sender, EventArgs e)
         {
-            presenter.OnProxyDelete();
+            var proxy = SelectedProxy;
+            if (proxy != null)
+            {
+                ProxyDeleteRequested?.Invoke(this, proxy.Id);
+            }
         }
 
         private void buttonBrowse_Click(object sender, EventArgs e)
         {
-            presenter.OnAppBrowse();
+            var proxy = SelectedProxy;
+            var fileName = openFileDialogApp.ShowDialog() == DialogResult.OK ? openFileDialogApp.FileName : null;
+            if (proxy == null || string.IsNullOrEmpty(fileName) || listBoxApps.Items.Contains(fileName))
+            {
+                return;
+            }
+            AppAddRequested?.Invoke(this, (proxy.Id, fileName));
         }
 
         private void buttonAppsAdd_Click(object sender, EventArgs e)
         {
-            presenter.OnAppAdd();
+            var proxy = SelectedProxy;
+            var appText = textBoxApp.Text;
+            if (proxy == null || string.IsNullOrEmpty(appText) || listBoxApps.Items.Contains(appText))
+            {
+                return;
+            }
+            AppAddRequested?.Invoke(this, (proxy.Id, appText));
         }
 
         private void buttonAppsDel_Click(object sender, EventArgs e)
         {
-            presenter.OnAppDelete();
+            var proxy = SelectedProxy;
+            if (proxy == null)
+            {
+                return;
+            }
+            AppDeleteRequested?.Invoke(this, (proxy.Id, listBoxApps.Text));
         }
 
-        private void textBoxIp_Validated(object sender, EventArgs e)
+        private void textBoxEndpoint_Validated(object sender, EventArgs e)
         {
-            presenter.OnIpValidated();
-        }
-
-        private void textBoxPort_Validated(object sender, EventArgs e)
-        {
-            presenter.OnPortValidated();
+            RaiseProxyFieldsEdit();
         }
 
         private void textBoxUsername_Validated(object sender, EventArgs e)
         {
-            presenter.OnUsernameValidated();
+            RaiseProxyFieldsEdit();
         }
 
         private void textBoxPassword_Validated(object sender, EventArgs e)
         {
-            presenter.OnPasswordValidated();
+            RaiseProxyFieldsEdit();
         }
 
         private void checkBoxTcp_Validated(object sender, EventArgs e)
         {
-            presenter.OnTcpValidated();
+            RaiseProxyFieldsEdit();
         }
 
         private void checkBoxUdp_Validated(object sender, EventArgs e)
         {
-            presenter.OnUdpValidated();
+            RaiseProxyFieldsEdit();
+        }
+
+        private void RaiseProxyFieldsEdit()
+        {
+            var proxy = SelectedProxy;
+            if (proxy == null)
+            {
+                return;
+            }
+            ProxyFieldsEditRequested?.Invoke(this, (proxy.Id, textBoxEndpoint.Text, textBoxUsername.Text, textBoxPassword.Text, checkBoxTcp.Checked, checkBoxUdp.Checked));
         }
 
         private void comboBoxLogLevel_Validated(object sender, EventArgs e)
         {
-            presenter.OnLogLevelValidated();
+            if (configuration != null)
+            {
+                LogLevelEditRequested?.Invoke(this, comboBoxLogLevel.Text);
+            }
         }
+
+        #endregion
 
         private void buttonSave_Click(object sender, EventArgs e)
         {
-            presenter.OnSave();
+            SaveRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void buttonStart_Click(object sender, EventArgs e)
         {
-            presenter.OnStart();
+            StartRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void buttonStop_Click(object sender, EventArgs e)
         {
-            presenter.OnStop();
+            StopRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void notifyIcon_DoubleClick(object sender, EventArgs e)
@@ -284,7 +320,7 @@ namespace proxifyre_tray
 
         private void toolStripMenuItemStartup_Click(object sender, EventArgs e)
         {
-            presenter.OnStartupToggle();
+            StartupToggleRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void toolStripMenuItemExit_Click(object sender, EventArgs e)
@@ -294,7 +330,9 @@ namespace proxifyre_tray
 
         private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (presenter.ShouldCancelClose(e.CloseReason == CloseReason.UserClosing))
+            var args = new ViewClosingEventArgs(e.CloseReason == CloseReason.UserClosing);
+            ViewClosing?.Invoke(this, args);
+            if (args.Cancel)
             {
                 Hide();
                 e.Cancel = true;
@@ -303,17 +341,17 @@ namespace proxifyre_tray
 
         private void FormMain_FormClosed(object sender, FormClosedEventArgs e)
         {
-            presenter.OnFormClosed();
+            ViewClosed?.Invoke(this, EventArgs.Empty);
         }
 
         private void buttonAbout_Click(object sender, EventArgs e)
         {
-            presenter.OnAbout();
+            AboutRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void richTextBoxOutput_LinkClicked(object sender, LinkClickedEventArgs e)
         {
-            presenter.OnLinkClicked(e.LinkText);
+            LinkClicked?.Invoke(this, e.LinkText ?? string.Empty);
         }
 
         private void textBoxApp_Resize(object sender, EventArgs e)
