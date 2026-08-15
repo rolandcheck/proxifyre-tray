@@ -18,7 +18,7 @@ namespace proxifyre_tray
     /// to the window exclusively through <see cref="IFormMainView"/>, so it never references
     /// System.Windows.Forms.
     /// </summary>
-    internal sealed class FormMainPresenter
+    public sealed class FormMainPresenter
     {
         private static readonly string ProgramName = "ProxiFyre.exe";
         private static readonly string ProgramPath = AppContext.BaseDirectory + ProgramName;
@@ -32,21 +32,21 @@ namespace proxifyre_tray
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
-        private readonly IFormMainView view;
-        private readonly string productName;
-        private readonly string executablePath;
+        private readonly IFormMainView _view;
+        private readonly string _productName;
+        private readonly string _executablePath;
 
         // Assigned in LoadConfig, called from Initialize (not the constructor) - always non-null by
         // the time any event handler below can run, since nothing can fire before Initialize completes.
-        private AppConfiguration configuration = null!;
+        private AppConfiguration _configuration = null!;
 
-        private Process? proxifyreProcess;
+        private Process? _proxifyreProcess;
 
         public FormMainPresenter(IFormMainView view, string productName, string executablePath)
         {
-            this.view = view;
-            this.productName = productName;
-            this.executablePath = executablePath;
+            _view = view;
+            _productName = productName;
+            _executablePath = executablePath;
 
             view.SaveRequested += (sender, e) => OnSave();
             view.StartRequested += (sender, e) => OnStart();
@@ -67,34 +67,34 @@ namespace proxifyre_tray
 
         private ProxyConfiguration? FindProxy(Guid proxyId)
         {
-            return configuration.Proxies.FirstOrDefault(proxy => proxy.Id == proxyId);
+            return _configuration.Proxies.FirstOrDefault(proxy => proxy.Id == proxyId);
         }
 
         /// <summary>Pushes a fresh snapshot to the view after a mutation, asking it to keep (or move to) the given proxy selected.</summary>
         private void RefreshView(Guid? selectedProxyId)
         {
-            view.SetConfiguration(configuration.ToView(), selectedProxyId);
+            _view.SetConfiguration(_configuration.ToView(), selectedProxyId);
         }
 
         private void OnProxyAdd()
         {
             var proxy = ProxyConfiguration.CreateDefault();
-            configuration.Proxies.Add(proxy);
+            _configuration.Proxies.Add(proxy);
             RefreshView(proxy.Id);
         }
 
         private void OnProxyDelete(Guid proxyId)
         {
-            var index = configuration.Proxies.FindIndex(proxy => proxy.Id == proxyId);
+            var index = _configuration.Proxies.FindIndex(proxy => proxy.Id == proxyId);
             if (index < 0)
             {
                 return;
             }
-            configuration.Proxies.RemoveAt(index);
+            _configuration.Proxies.RemoveAt(index);
 
             // Select whatever ends up at the same position, mirroring the old "nearest remaining item" behaviour.
-            Guid? fallbackId = configuration.Proxies.Count > 0
-                ? configuration.Proxies[Math.Min(index, configuration.Proxies.Count - 1)].Id
+            Guid? fallbackId = _configuration.Proxies.Count > 0
+                ? _configuration.Proxies[Math.Min(index, _configuration.Proxies.Count - 1)].Id
                 : null;
             RefreshView(fallbackId);
         }
@@ -145,47 +145,47 @@ namespace proxifyre_tray
         {
             // Doesn't touch any proxy, and the combo box already shows what the user just typed -
             // no need to push a fresh snapshot back.
-            configuration.LogLevel = logLevel;
+            _configuration.LogLevel = logLevel;
         }
 
         public void Initialize()
         {
             if (!File.Exists(ProgramPath))
             {
-                view.DisableAllControls();
-                view.AppendLine("Couldn't find " + ProgramName);
-                view.AppendLine("proxifyre-tray.exe must be inside the ProxiFyre directory to work");
-                view.ShowForm();
+                _view.DisableAllControls();
+                _view.AppendLine("Couldn't find " + ProgramName);
+                _view.AppendLine("proxifyre-tray.exe must be inside the ProxiFyre directory to work");
+                _view.ShowForm();
                 return;
             }
 
             OnAbout();
 
-            view.SetRunningState(false);
-            view.SetLogLevels(LogLevels);
+            _view.SetRunningState(false);
+            _view.SetLogLevels(LogLevels);
 
             LoadConfig();
 
             var startupRegistryKey = Registry.CurrentUser.OpenSubKey(StartupRegistryKeyPath, true);
-            var startupRegistryValue = startupRegistryKey?.GetValue(productName) as string;
+            var startupRegistryValue = startupRegistryKey?.GetValue(_productName) as string;
             if (startupRegistryValue == null)
             {
-                view.StartupChecked = false;
+                _view.StartupChecked = false;
             }
-            else if (startupRegistryValue == executablePath)
+            else if (startupRegistryValue == _executablePath)
             {
-                view.StartupChecked = true;
+                _view.StartupChecked = true;
                 OnStart();
             }
             else
             {
-                startupRegistryKey?.DeleteValue(productName, false);
-                view.StartupChecked = false;
+                startupRegistryKey?.DeleteValue(_productName, false);
+                _view.StartupChecked = false;
             }
 
-            if (!view.StartupChecked)
+            if (!_view.StartupChecked)
             {
-                view.ShowForm();
+                _view.ShowForm();
             }
         }
 
@@ -200,23 +200,23 @@ namespace proxifyre_tray
                 }
                 catch (Exception ex)
                 {
-                    view.AppendLine(ex.Message);
+                    _view.AppendLine(ex.Message);
                 }
                 // Mirror Newtonsoft's old leniency: an empty/unreadable file yields an
                 // empty configuration rather than a JsonException.
                 var dto = string.IsNullOrEmpty(configContent)
                     ? null
                     : JsonSerializer.Deserialize<Configuration>(configContent, JsonOptions);
-                configuration = dto?.ToDomain() ?? new AppConfiguration();
+                _configuration = dto?.ToDomain() ?? new AppConfiguration();
             }
             else
             {
-                configuration = new AppConfiguration();
+                _configuration = new AppConfiguration();
             }
 
-            if (string.IsNullOrEmpty(configuration.LogLevel))
+            if (string.IsNullOrEmpty(_configuration.LogLevel))
             {
-                configuration.LogLevel = LogLevels[0];
+                _configuration.LogLevel = LogLevels[0];
             }
 
             RefreshView(null);
@@ -224,17 +224,17 @@ namespace proxifyre_tray
 
         private void OnSave()
         {
-            var dto = configuration.ToDto();
+            var dto = _configuration.ToDto();
             var content = JsonSerializer.Serialize(dto, JsonOptions);
 
             try
             {
                 File.WriteAllText(ConfigPath, content);
-                view.AppendLine("Configuration file saved");
+                _view.AppendLine("Configuration file saved");
             }
             catch (Exception ex)
             {
-                view.AppendLine(ex.Message);
+                _view.AppendLine(ex.Message);
             }
         }
 
@@ -247,9 +247,9 @@ namespace proxifyre_tray
                 return;
             }
 
-            if (proxifyreProcess == null)
+            if (_proxifyreProcess == null)
             {
-                view.AppendLine("Starting ProxiFyre");
+                _view.AppendLine("Starting ProxiFyre");
             }
             else
             {
@@ -257,16 +257,16 @@ namespace proxifyre_tray
                 {
                     // GetProcessById never returns null - it throws if the process isn't running,
                     // which is exactly what we're probing for here.
-                    Process.GetProcessById(proxifyreProcess.Id);
+                    Process.GetProcessById(_proxifyreProcess.Id);
                     OnStop();
                 }
                 catch (Exception)
                 {
-                    view.AppendLine("Starting ProxiFyre");
+                    _view.AppendLine("Starting ProxiFyre");
                 }
             }
 
-            proxifyreProcess = new Process
+            _proxifyreProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
@@ -279,56 +279,56 @@ namespace proxifyre_tray
                 EnableRaisingEvents = true
             };
 
-            proxifyreProcess.OutputDataReceived += (sender, e) => view.AppendLine(e.Data ?? string.Empty);
+            _proxifyreProcess.OutputDataReceived += (sender, e) => _view.AppendLine(e.Data ?? string.Empty);
 
             try
             {
-                proxifyreProcess.Start();
-                proxifyreProcess.BeginOutputReadLine();
-                proxifyreProcess.BeginErrorReadLine();
+                _proxifyreProcess.Start();
+                _proxifyreProcess.BeginOutputReadLine();
+                _proxifyreProcess.BeginErrorReadLine();
             }
             catch (Exception ex)
             {
-                view.AppendLine(ex.Message);
+                _view.AppendLine(ex.Message);
             }
 
-            view.SetRunningState(true);
+            _view.SetRunningState(true);
         }
 
         private void OnStop()
         {
-            if (proxifyreProcess == null)
+            if (_proxifyreProcess == null)
             {
                 return;
             }
 
-            view.AppendLine("Stopping ProxiFyre");
-            proxifyreProcess.Kill();
-            proxifyreProcess.Dispose();
+            _view.AppendLine("Stopping ProxiFyre");
+            _proxifyreProcess.Kill();
+            _proxifyreProcess.Dispose();
 
-            view.SetRunningState(false);
+            _view.SetRunningState(false);
         }
 
         private void OnStartupToggle()
         {
             var startupRegistryKey = Registry.CurrentUser.OpenSubKey(StartupRegistryKeyPath, true);
-            if (!view.StartupChecked)
+            if (!_view.StartupChecked)
             {
-                startupRegistryKey?.SetValue(productName, executablePath);
-                view.StartupChecked = true;
+                startupRegistryKey?.SetValue(_productName, _executablePath);
+                _view.StartupChecked = true;
             }
             else
             {
-                startupRegistryKey?.DeleteValue(productName, false);
-                view.StartupChecked = false;
+                startupRegistryKey?.DeleteValue(_productName, false);
+                _view.StartupChecked = false;
             }
         }
 
         private void OnAbout()
         {
-            view.AppendLine("ProxiFyre configuration utility and tray launcher thing");
-            view.AppendLine("proxifyre-tray by airenelias https://github.com/airenelias/proxifyre-tray");
-            view.AppendLine("Icons by Icons8 https://icons8.com");
+            _view.AppendLine("ProxiFyre configuration utility and tray launcher thing");
+            _view.AppendLine("proxifyre-tray by airenelias https://github.com/airenelias/proxifyre-tray");
+            _view.AppendLine("Icons by Icons8 https://icons8.com");
         }
 
         private void OnLinkClicked(string link)
@@ -344,7 +344,7 @@ namespace proxifyre_tray
 
         private void OnFormClosed()
         {
-            if (proxifyreProcess == null)
+            if (_proxifyreProcess == null)
             {
                 return;
             }
@@ -352,9 +352,9 @@ namespace proxifyre_tray
             {
                 // GetProcessById never returns null - it throws if the process isn't running,
                 // which is exactly what we're probing for here.
-                Process.GetProcessById(proxifyreProcess.Id);
-                proxifyreProcess.Kill();
-                proxifyreProcess.Dispose();
+                Process.GetProcessById(_proxifyreProcess.Id);
+                _proxifyreProcess.Kill();
+                _proxifyreProcess.Dispose();
             }
             catch (Exception)
             {

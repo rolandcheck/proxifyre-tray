@@ -7,17 +7,18 @@ namespace proxifyre_tray
     /// Domain model for the app's proxy configuration - the shape the presenter works with
     /// at runtime. Deliberately decoupled from the on-disk JSON format (<see cref="Configuration"/>,
     /// a persistence DTO) and, just as deliberately, never handed to the view - the view only
-    /// ever sees <see cref="ConfigurationView"/>. Internal (not public) because of that: nothing
-    /// outside the presenter should reference it.
+    /// ever sees <see cref="ConfigurationView"/>. Nothing outside the Infrastructure/Application
+    /// projects should reference it; that's enforced by neither of the other projects (View,
+    /// proxifyre-tray) referencing this one, not by access modifiers.
     /// </summary>
-    internal sealed class AppConfiguration
+    public sealed class AppConfiguration
     {
         public string LogLevel { get; set; } = string.Empty;
 
         public List<ProxyConfiguration> Proxies { get; set; } = new List<ProxyConfiguration>();
     }
 
-    internal sealed class ProxyConfiguration
+    public sealed class ProxyConfiguration
     {
         /// <summary>Stable per-instance identity, so the presenter can be told "edit/delete this one"
         /// by the view without the view ever holding this object itself - see <see cref="ProxyView.Id"/>.</summary>

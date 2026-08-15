@@ -14,7 +14,7 @@ namespace proxifyre_tray
     /// the actual mutation, then calls <see cref="SetConfiguration"/> again with a fresh snapshot
     /// for the view to re-render - the view never has to (and never does) infer what changed.
     /// </summary>
-    internal interface IFormMainView
+    public interface IFormMainView
     {
         /// <summary>Hands the view a fresh snapshot to render, selecting the given proxy if it still exists
         /// (falling back to the first one otherwise). Called once for the initial load and again after every edit.</summary>
@@ -73,8 +73,6 @@ namespace proxifyre_tray
     /// <summary>
     /// Event data for <see cref="IFormMainView.ViewClosing"/> - deliberately not
     /// System.Windows.Forms.FormClosingEventArgs, so the presenter stays framework-agnostic.
-    /// Public (unlike the rest of this file) only because FormMain's ViewClosing event, being
-    /// on a public Form subclass, can't expose an internal type in its signature.
     /// </summary>
     public sealed class ViewClosingEventArgs : EventArgs
     {

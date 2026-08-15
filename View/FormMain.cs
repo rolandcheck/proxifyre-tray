@@ -18,12 +18,12 @@ namespace proxifyre_tray
     /// </summary>
     public partial class FormMain : Form, IFormMainView
     {
-        private bool formVisible;
-        private ConfigurationView? configuration;
+        private bool _formVisible;
+        private ConfigurationView? _configuration;
 
         protected override void SetVisibleCore(bool value)
         {
-            if (!formVisible)
+            if (!_formVisible)
             {
                 value = false;
             }
@@ -55,8 +55,8 @@ namespace proxifyre_tray
             get
             {
                 var index = listBoxProxies.SelectedIndex;
-                return configuration != null && index >= 0 && index < configuration.Proxies.Count
-                    ? configuration.Proxies[index]
+                return _configuration != null && index >= 0 && index < _configuration.Proxies.Count
+                    ? _configuration.Proxies[index]
                     : null;
             }
         }
@@ -65,8 +65,8 @@ namespace proxifyre_tray
 
         public void SetConfiguration(ConfigurationView configurationView, Guid? selectedProxyId)
         {
-            configuration = configurationView;
-            comboBoxLogLevel.Text = configuration.LogLevel;
+            _configuration = configurationView;
+            comboBoxLogLevel.Text = _configuration.LogLevel;
             RefreshProxyList(selectedProxyId);
         }
 
@@ -108,7 +108,7 @@ namespace proxifyre_tray
 
         public void ShowForm()
         {
-            formVisible = true;
+            _formVisible = true;
             Show();
         }
 
@@ -134,9 +134,9 @@ namespace proxifyre_tray
 
         private void RefreshProxyList(Guid? selectedProxyId)
         {
-            // Only ever called right after SetConfiguration assigns configuration, so it's never null here.
+            // Only ever called right after SetConfiguration assigns _configuration, so it's never null here.
             listBoxProxies.Items.Clear();
-            foreach (var proxy in configuration!.Proxies)
+            foreach (var proxy in _configuration!.Proxies)
             {
                 listBoxProxies.Items.Add(proxy.Endpoint);
             }
@@ -144,7 +144,7 @@ namespace proxifyre_tray
             if (listBoxProxies.Items.Count > 0)
             {
                 var index = selectedProxyId.HasValue
-                    ? configuration.Proxies.FindIndex(proxy => proxy.Id == selectedProxyId.Value)
+                    ? _configuration.Proxies.FindIndex(proxy => proxy.Id == selectedProxyId.Value)
                     : -1;
                 listBoxProxies.SelectedIndex = index >= 0 ? index : 0;
             }
@@ -290,7 +290,7 @@ namespace proxifyre_tray
 
         private void comboBoxLogLevel_Validated(object sender, EventArgs e)
         {
-            if (configuration != null)
+            if (_configuration != null)
             {
                 LogLevelEditRequested?.Invoke(this, comboBoxLogLevel.Text);
             }

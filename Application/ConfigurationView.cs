@@ -8,9 +8,7 @@ namespace proxifyre_tray
     /// domain model (<see cref="AppConfiguration"/>) itself. The view treats every edit
     /// as an intent to raise, identifying the proxy involved by <see cref="ProxyView.Id"/>
     /// rather than holding any domain object; the presenter resolves the id back to the
-    /// real <see cref="ProxyConfiguration"/> and performs the actual mutation. Public
-    /// (unlike most of the presenter-side model) only because FormMain's SetConfiguration,
-    /// being on a public Form subclass, can't expose an internal type as a parameter.
+    /// real <see cref="ProxyConfiguration"/> and performs the actual mutation.
     /// </summary>
     public sealed class ConfigurationView
     {

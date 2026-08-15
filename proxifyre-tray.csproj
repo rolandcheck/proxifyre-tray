@@ -8,16 +8,26 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <RootNamespace>proxifyre_tray</RootNamespace>
     <AssemblyName>proxifyre-tray</AssemblyName>
-    <ApplicationIcon>Resources\icons8-sorting-arrows-32.ico</ApplicationIcon>
+    <ApplicationIcon>View\Resources\icons8-sorting-arrows-32.ico</ApplicationIcon>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <!-- WFO1000: flags public properties on Form subclasses as needing designer-serialization
-         metadata. The properties it targets here exist solely to implement IFormMainView for
-         the MVP presenter, not for the WinForms designer, so the warning doesn't apply. -->
-    <NoWarn>$(NoWarn);WFO1000</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Riok.Mapperly" Version="4.3.1" />
+    <!-- Domain/Infrastructure/Application/View are their own projects, but their folders sit under
+         this one; without this, SDK-style default globbing would also compile their files directly here. -->
+    <Compile Remove="Domain\**" />
+    <Compile Remove="Infrastructure\**" />
+    <Compile Remove="Application\**" />
+    <Compile Remove="View\**" />
+    <None Remove="Domain\**" />
+    <None Remove="Infrastructure\**" />
+    <None Remove="Application\**" />
+    <None Remove="View\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="Application\ProxifyreTray.Application.csproj" />
+    <ProjectReference Include="View\ProxifyreTray.View.csproj" />
   </ItemGroup>
 
 </Project>

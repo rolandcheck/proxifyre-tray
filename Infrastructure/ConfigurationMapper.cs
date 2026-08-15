@@ -15,7 +15,7 @@ namespace proxifyre_tray
     /// AppConfiguration.LogLevel's "= string.Empty" default is enough - no hand-written help needed.
     /// </summary>
     [Mapper]
-    internal static partial class ConfigurationMapper
+    public static partial class ConfigurationMapper
     {
         /// <summary>Maps the DTO to the runtime domain model.</summary>
         public static partial AppConfiguration ToDomain(this Configuration source);

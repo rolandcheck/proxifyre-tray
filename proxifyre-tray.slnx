@@ -1,0 +1,20 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Application/">
+    <Project Path="Application/ProxifyreTray.Application.csproj" />
+  </Folder>
+  <Folder Name="/Domain/">
+    <Project Path="Domain/ProxifyreTray.Domain.csproj" />
+  </Folder>
+  <Folder Name="/Infrastructure/">
+    <Project Path="Infrastructure/ProxifyreTray.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/View/">
+    <Project Path="View/ProxifyreTray.View.csproj" />
+  </Folder>
+  <Project Path="proxifyre-tray.csproj" />
+</Solution>
