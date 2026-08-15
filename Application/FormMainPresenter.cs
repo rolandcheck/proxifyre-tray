@@ -36,9 +36,9 @@ namespace proxifyre_tray
         private readonly string _productName;
         private readonly string _executablePath;
 
-        // Assigned in LoadConfig, called from Initialize (not the constructor) - always non-null by
-        // the time any event handler below can run, since nothing can fire before Initialize completes.
-        private AppConfiguration _configuration = null!;
+        // Real default rather than a null! placeholder - LoadConfig (called from Initialize) replaces
+        // it with the loaded configuration, but nothing reads it before that, so an empty one is fine.
+        private AppConfiguration _configuration = new AppConfiguration();
 
         private Process? _proxifyreProcess;
 
@@ -128,12 +128,10 @@ namespace proxifyre_tray
             {
                 return;
             }
-            // Skip the endpoint commit while it's blank - otherwise a mid-edit empty field would
-            // blank out (and, on save, drop) an otherwise-valid proxy.
-            if (!string.IsNullOrEmpty(endpoint))
-            {
-                proxy.Endpoint = endpoint;
-            }
+            // The Endpoint setter itself rejects anything that isn't empty or a valid "host:port" pair,
+            // keeping whatever was there before - so a mid-edit blank or portless field doesn't blank
+            // out (and, on save, drop) an otherwise-valid proxy. No guard needed here.
+            proxy.Endpoint = endpoint;
             proxy.Username = username;
             proxy.Password = password;
             proxy.Tcp = tcp;
