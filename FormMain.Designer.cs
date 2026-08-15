@@ -274,8 +274,7 @@
             // openFileDialogApp
             // 
             this.openFileDialogApp.Title = "Select app to proxy";
-            this.openFileDialogApp.FileOk += new System.ComponentModel.CancelEventHandler(this.openFileDialogApp_FileOk);
-            // 
+            //
             // buttonStop
             // 
             this.buttonStop.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));

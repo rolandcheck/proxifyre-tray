@@ -10,10 +10,10 @@
     <AssemblyName>proxifyre-tray</AssemblyName>
     <ApplicationIcon>Resources\icons8-sorting-arrows-32.ico</ApplicationIcon>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- WFO1000: flags public properties on Form subclasses as needing designer-serialization
+         metadata. The properties it targets here exist solely to implement IFormMainView for
+         the MVP presenter, not for the WinForms designer, so the warning doesn't apply. -->
+    <NoWarn>$(NoWarn);WFO1000</NoWarn>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  </ItemGroup>
 
 </Project>
