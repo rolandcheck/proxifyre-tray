@@ -30,4 +30,13 @@
     <ProjectReference Include="View\ProxifyreTray.View.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Local-only, gitignored: a real ProxiFyre.exe (a separate project's binary) and a working
+         app-config.json, copied next to the built exe so the app can find them at runtime
+         (FormMainPresenter looks for ProxiFyre.exe in AppContext.BaseDirectory). Conditioned on
+         actually existing so a fresh clone without them still builds fine. -->
+    <None Include="ProxiFyre.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('ProxiFyre.exe')" />
+    <None Include="app-config.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('app-config.json')" />
+  </ItemGroup>
+
 </Project>

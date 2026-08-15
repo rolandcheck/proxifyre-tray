@@ -23,7 +23,6 @@ namespace proxifyre_tray
         private static readonly string ProgramName = "ProxiFyre.exe";
         private static readonly string ProgramPath = AppContext.BaseDirectory + ProgramName;
         private static readonly string ConfigPath = AppContext.BaseDirectory + "app-config.json";
-        private static readonly string[] LogLevels = { "None", "Info", "Deb", "All" };
         private const string StartupRegistryKeyPath = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run";
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
@@ -53,7 +52,6 @@ namespace proxifyre_tray
             view.StopRequested += (sender, e) => OnStop();
             view.StartupToggleRequested += (sender, e) => OnStartupToggle();
             view.AboutRequested += (sender, e) => OnAbout();
-            view.LinkClicked += (sender, link) => OnLinkClicked(link);
             view.ViewClosing += (sender, e) => e.Cancel = ShouldCancelClose(e.UserClosing);
             view.ViewClosed += (sender, e) => OnFormClosed();
 
@@ -128,9 +126,9 @@ namespace proxifyre_tray
             {
                 return;
             }
-            // The Endpoint setter itself rejects anything that isn't empty or a valid "host:port" pair,
-            // keeping whatever was there before - so a mid-edit blank or portless field doesn't blank
-            // out (and, on save, drop) an otherwise-valid proxy. No guard needed here.
+            // The Endpoint setter itself rejects anything that isn't a valid "host:port" pair, including
+            // blank, keeping whatever was there before - so a mid-edit blank or portless field doesn't
+            // blank out (and, on save, drop) an otherwise-valid proxy. No guard needed here.
             proxy.Endpoint = endpoint;
             proxy.Username = username;
             proxy.Password = password;
@@ -160,7 +158,6 @@ namespace proxifyre_tray
             OnAbout();
 
             _view.SetRunningState(false);
-            _view.SetLogLevels(LogLevels);
 
             LoadConfig();
 
@@ -214,7 +211,7 @@ namespace proxifyre_tray
 
             if (string.IsNullOrEmpty(_configuration.LogLevel))
             {
-                _configuration.LogLevel = LogLevels[0];
+                _configuration.LogLevel = _configuration.ValidLogLevels[0];
             }
 
             RefreshView(null);
@@ -327,11 +324,6 @@ namespace proxifyre_tray
             _view.AppendLine("ProxiFyre configuration utility and tray launcher thing");
             _view.AppendLine("proxifyre-tray by airenelias https://github.com/airenelias/proxifyre-tray");
             _view.AppendLine("Icons by Icons8 https://icons8.com");
-        }
-
-        private void OnLinkClicked(string link)
-        {
-            Process.Start(link);
         }
 
         /// <summary>Whether a user-initiated close should be turned into a hide instead.</summary>

@@ -73,11 +73,11 @@
             this.richTextBoxOutput.HideSelection = false;
             this.richTextBoxOutput.Location = new System.Drawing.Point(12, 140);
             this.richTextBoxOutput.Name = "richTextBoxOutput";
+            this.richTextBoxOutput.DetectUrls = false;
             this.richTextBoxOutput.ReadOnly = true;
             this.richTextBoxOutput.Size = new System.Drawing.Size(610, 82);
             this.richTextBoxOutput.TabIndex = 22;
             this.richTextBoxOutput.Text = "";
-            this.richTextBoxOutput.LinkClicked += new System.Windows.Forms.LinkClickedEventHandler(this.richTextBoxOutput_LinkClicked);
             // 
             // listBoxProxies
             // 

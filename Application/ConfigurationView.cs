@@ -14,6 +14,11 @@ namespace proxifyre_tray
     {
         public string LogLevel { get; set; } = string.Empty;
 
+        /// <summary>Mirrors <see cref="AppConfiguration.ValidLogLevels"/> - carried here (rather than a
+        /// separate one-time interface call) so the view has everything it needs to render from a single
+        /// snapshot.</summary>
+        public IReadOnlyList<string> ValidLogLevels { get; set; } = new List<string>();
+
         public List<ProxyView> Proxies { get; set; } = new List<ProxyView>();
     }
 

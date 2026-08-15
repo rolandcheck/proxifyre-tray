@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace proxifyre_tray
 {
@@ -22,8 +21,6 @@ namespace proxifyre_tray
 
         bool StartupChecked { get; set; }
 
-        void SetLogLevels(IReadOnlyList<string> levels);
-
         /// <summary>Toggles the tray icon / start button image between the running and stopped states,
         /// and enables/disables the Stop button to match.</summary>
         void SetRunningState(bool running);
@@ -40,7 +37,6 @@ namespace proxifyre_tray
         event EventHandler StopRequested;
         event EventHandler StartupToggleRequested;
         event EventHandler AboutRequested;
-        event EventHandler<string> LinkClicked;
 
         /// <summary>Raised when the window is about to close. Set <see cref="ViewClosingEventArgs.Cancel"/> to turn it into a hide instead.
         /// Named ViewClosing (not Closing) to avoid colliding with Form's own legacy Closing event.</summary>

@@ -3,6 +3,12 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# Local ProxiFyre install (a separate project's binary) and runtime config, kept at the repo
+# root so proxifyre-tray.csproj can copy them into the exe's own output folder for local
+# testing - not sources we own, so not tracked.
+/ProxiFyre.exe
+/app-config.json
+
 # User-specific files
 *.rsuser
 *.suo

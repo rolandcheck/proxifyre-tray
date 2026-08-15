@@ -66,6 +66,7 @@ namespace proxifyre_tray
         public void SetConfiguration(ConfigurationView configurationView, Guid? selectedProxyId)
         {
             _configuration = configurationView;
+            comboBoxLogLevel.DataSource = configurationView.ValidLogLevels.ToList();
             comboBoxLogLevel.Text = _configuration.LogLevel;
             RefreshProxyList(selectedProxyId);
         }
@@ -74,11 +75,6 @@ namespace proxifyre_tray
         {
             get => toolStripMenuItemStartup.Checked;
             set => toolStripMenuItemStartup.Checked = value;
-        }
-
-        public void SetLogLevels(IReadOnlyList<string> levels)
-        {
-            comboBoxLogLevel.DataSource = levels.ToList();
         }
 
         public void SetRunningState(bool running)
@@ -117,7 +113,6 @@ namespace proxifyre_tray
         public event EventHandler? StopRequested;
         public event EventHandler? StartupToggleRequested;
         public event EventHandler? AboutRequested;
-        public event EventHandler<string>? LinkClicked;
         public event EventHandler<ViewClosingEventArgs>? ViewClosing;
         public event EventHandler? ViewClosed;
 
@@ -347,11 +342,6 @@ namespace proxifyre_tray
         private void buttonAbout_Click(object sender, EventArgs e)
         {
             AboutRequested?.Invoke(this, EventArgs.Empty);
-        }
-
-        private void richTextBoxOutput_LinkClicked(object sender, LinkClickedEventArgs e)
-        {
-            LinkClicked?.Invoke(this, e.LinkText ?? string.Empty);
         }
 
         private void textBoxApp_Resize(object sender, EventArgs e)

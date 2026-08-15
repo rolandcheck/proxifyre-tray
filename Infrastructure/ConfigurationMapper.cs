@@ -20,7 +20,9 @@ namespace proxifyre_tray
         /// <summary>Maps the DTO to the runtime domain model.</summary>
         public static partial AppConfiguration ToDomain(this Configuration source);
 
-        /// <summary>Maps the domain model back to the DTO for serialization.</summary>
+        /// <summary>Maps the domain model back to the DTO for serialization. AppConfiguration.ValidLogLevels
+        /// has no DTO counterpart - it's constant metadata about what LogLevel accepts, not persisted state.</summary>
+        [MapperIgnoreSource(nameof(AppConfiguration.ValidLogLevels))]
         public static partial Configuration ToDto(this AppConfiguration source);
 
         private static ProxyConfiguration Map(Configuration.Proxy source)
